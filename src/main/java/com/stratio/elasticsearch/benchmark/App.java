@@ -3,6 +3,7 @@ package com.stratio.elasticsearch.benchmark;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,16 +16,10 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
 import org.apache.log4j.chainsaw.Main;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-
-import com.google.common.util.concurrent.RateLimiter;
 
 public class App {
 
@@ -88,28 +83,22 @@ public class App {
 		Boolean relevance = Boolean.parseBoolean(properties.getProperty("relevance"));
 
 		Settings settings = ImmutableSettings.settingsBuilder()
-		// .put("client.transport.sniff", true)
+		                                     .put("client.transport.sniff", false)
+		                                     .put("client.transport.nodes_sampler_interval", 60)
+		                                     .put("cluster.name", "wikipedia-benchmark")
 		                                     .build();
 		TransportClient client = new TransportClient(settings);
 		for (String host : hosts.split(",")) {
+			System.out.println("ADDING CLIENT " + host);
 			client.addTransportAddress(new InetSocketTransportAddress(host, 9300));
 		}
+		client.connectedNodes();
 
-		RateLimiter rateLimiter = RateLimiter.create(rate);
 		Stats stats = new Stats();
 		ExecutorService executorService = Executors.newFixedThreadPool(threads);
-		for (String data : dataset.get(queries)) {
-			QueryBuilder qb = QueryBuilders.queryString(data);
-			if (!relevance) {
-				qb = QueryBuilders.constantScoreQuery(qb);
-			}
-			SearchRequestBuilder searchRequestBuilder = client.prepareSearch(index)
-			                                                  .setTypes(type)
-			                                                  .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-			                                                  .setQuery(qb)
-			                                                  .setSize(limit)
-			                                                  .setExplain(false);
-			Consumer consumer = new Consumer(searchRequestBuilder, rateLimiter, stats);
+		for (int i = 0; i < threads; i++) {
+			List<String> data = dataset.get(queries);
+			Consumer consumer = new Consumer(client, index, type, limit, relevance, data, rate, stats);
 			executorService.execute(consumer);
 		}
 		executorService.shutdown();

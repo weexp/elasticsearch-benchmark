@@ -7,6 +7,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,7 +31,7 @@ public class Dataset implements Closeable, Iterable<String> {
 		return lines.iterator();
 	}
 
-	public Collection<String> get(int n) {
+	public List<String> get(int n) {
 		Integer counter = new Integer(n);
 		List<String> result = new ArrayList<>(n);
 		while (counter > 0) {
@@ -41,6 +42,7 @@ public class Dataset implements Closeable, Iterable<String> {
 			}
 			counter = n - result.size();
 		}
+		Collections.shuffle(result); // Randomize for mitigate caching
 		return result;
 	}
 
